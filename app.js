@@ -51,14 +51,65 @@ async function register() {
   if (error) return alert('Registration failed: ' + error.message);
   alert('Registration successful! Check your email.');
 }
-
-
-
 async function logout() {
   await supabase.auth.signOut();
   localStorage.removeItem('printerId');
   location.reload();
 }
+// async function printBill() {
+//   const name = document.getElementById('donor-name').value;
+//   const address = document.getElementById('donor-address').value;
+//   const amount = parseFloat(document.getElementById('amount').value);
+//   if (!name || !address || !amount) return alert('Fill in all fields');
+
+//   const billNo = await getNextBillNo();
+//   const date = new Date();
+//   const groupName = localStorage.getItem('ganesh_group') || 'GANESH GROUP';
+
+//   const bill = {
+//     user_id: currentUser.id,
+//     name,
+//     address,
+//     amount,
+//     date: date.toLocaleDateString(),
+//     time: date.toLocaleTimeString(),
+//     bill_no: billNo,
+//     group_name: groupName
+//   };
+
+//   const { error } = await supabase.from('collection_bills').insert([bill]);
+//   if (error) return alert('Error saving to database: ' + error.message);
+
+// //   localStorage.setItem('ganesh_bill_no', ++billNo);
+
+//   // Save recent addresses
+//   let recentAddresses = JSON.parse(localStorage.getItem('ganesh_addresses') || '[]');
+//   if (!recentAddresses.includes(address)) {
+//     recentAddresses.unshift(address);
+//     if (recentAddresses.length > 10) recentAddresses.pop();
+//     localStorage.setItem('ganesh_addresses', JSON.stringify(recentAddresses));
+//   }
+//   updateAddressSuggestions();
+
+//   const confirmation = `
+// ---------------------------
+// ${groupName}
+// ---------------------------
+// Name: ${name}
+// Address: ${address}
+// Amount: ${amount}
+// Bill No: GC-${bill.bill_no}
+// Date: ${bill.date} ${bill.time}
+// ---------------------------
+// Thank you for your support!
+// ---------------------------`;
+
+//   printRaw(confirmation);
+//   document.getElementById('confirmation').innerText = `✅ Bill Saved & Sent to Printer: GC-${bill.bill_no}`;
+//   document.getElementById('donor-name').value = '';
+//   document.getElementById('donor-address').value = '';
+//   document.getElementById('amount').value = '';
+// }
 async function printBill() {
   const name = document.getElementById('donor-name').value;
   const address = document.getElementById('donor-address').value;
@@ -83,8 +134,6 @@ async function printBill() {
   const { error } = await supabase.from('collection_bills').insert([bill]);
   if (error) return alert('Error saving to database: ' + error.message);
 
-//   localStorage.setItem('ganesh_bill_no', ++billNo);
-
   // Save recent addresses
   let recentAddresses = JSON.parse(localStorage.getItem('ganesh_addresses') || '[]');
   if (!recentAddresses.includes(address)) {
@@ -94,25 +143,116 @@ async function printBill() {
   }
   updateAddressSuggestions();
 
-  const confirmation = `
----------------------------
-${groupName}
----------------------------
-Name: ${name}
-Address: ${address}
-Amount: ${amount}
-Bill No: GC-${bill.bill_no}
-Date: ${bill.date} ${bill.time}
----------------------------
-Thank you for your support!
----------------------------`;
+  // Prepare bill text
+  const confirmation =
+    `\n ${groupName} \n` +
+    `-------------------------------\n` +
+    `Donor Name: ${name}\n` +
+    `Address: ${address}\n` +
+    `Amount in Rupees: ${amount}\n` +
+    `Bill No: GC-${bill.bill_no}\n` +
+    `Date: ${bill.date}\n` +
+    `Time: ${bill.time}\n` +
+    `-------------------------------\n` +
+    `May lord Ganesha Bless you` +
+    `\n ${groupName} \n` +
+    ` Thank you for your support! \n\n\n`;
 
-  printRaw(confirmation);
+  const encoder = new TextEncoder();
+  const data = encoder.encode(confirmation);
+
+  // Helper to send chunks
+  async function sendInChunks(characteristic, buffer) {
+    const chunkSize = 512;
+    for (let i = 0; i < buffer.length; i += chunkSize) {
+      const chunk = buffer.slice(i, i + chunkSize);
+      await characteristic.writeValue(chunk);
+    }
+  }
+
+  // Print logic
+  if (printerDevice && printerCharacteristic) {
+    await printLogoToPrinter(); // 🖼️ Logo first
+    await sendInChunks(printerCharacteristic, data); // 🧾 Text
+  } else {
+    try {
+      const device = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+      });
+      printerDevice = device;
+      localStorage.setItem('printerId', device.id);
+      const server = await device.gatt.connect();
+      const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+      printerCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+
+      await printLogoToPrinter();
+      await sendInChunks(printerCharacteristic, data);
+    } catch (err) {
+      console.error('Printing failed:', err);
+      alert('Failed to connect to printer.');
+    }
+  }
+
+  // Reset UI
   document.getElementById('confirmation').innerText = `✅ Bill Saved & Sent to Printer: GC-${bill.bill_no}`;
   document.getElementById('donor-name').value = '';
   document.getElementById('donor-address').value = '';
   document.getElementById('amount').value = '';
 }
+
+async function printLogoToPrinter() {
+  const img = document.getElementById('logo-img');
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+  canvas.width = 384;
+  canvas.height = img.height * (384 / img.width); // maintain aspect ratio
+
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const width = canvas.width;
+  const height = canvas.height;
+  const bytesPerRow = Math.ceil(width / 8);
+  const raster = new Uint8Array(bytesPerRow * height);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const r = imageData.data[i];
+      const g = imageData.data[i + 1];
+      const b = imageData.data[i + 2];
+      const brightness = (r + g + b) / 3;
+      if (brightness < 128) {
+        raster[y * bytesPerRow + (x >> 3)] |= (0x80 >> (x & 7));
+      }
+    }
+  }
+
+  const header = new Uint8Array([
+    0x1D, 0x76, 0x30, 0x00,
+    bytesPerRow & 0xFF, (bytesPerRow >> 8) & 0xFF,
+    height & 0xFF, (height >> 8) & 0xFF
+  ]);
+
+  const full = new Uint8Array(header.length + raster.length);
+  full.set(header);
+  full.set(raster, header.length);
+
+  // Chunked write
+  const chunkSize = 512;
+  for (let i = 0; i < full.length; i += chunkSize) {
+    const chunk = full.slice(i, i + chunkSize);
+    await printerCharacteristic.writeValue(chunk);
+  }
+}
+
+
+
+
+
 
 
 
