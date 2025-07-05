@@ -356,18 +356,41 @@ async function downloadReport() {
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
+  const groupName = localStorage.getItem('ganesh_group') || 'Ganesh Mandal';
   doc.setFontSize(16);
-  doc.text('Ganesh Chaturthi Collection Report', 14, 20);
+  doc.text(`${groupName} Collection Report`, 14, 20);
+
+  // 🧮 Calculate totals
+const totalReceipts = data.length;
+const totalAmount = data.reduce((sum, bill) => sum + parseFloat(bill.amount), 0);
+
+doc.setFontSize(12);
+doc.setDrawColor(255); // no border
+
+// Box 1: Total Receipts
+doc.setFillColor(255, 224, 178); // light orange (#FFE0B2)
+doc.setTextColor(78, 52, 46);    // dark brown (#4E342E)
+doc.rect(14, 25, 80, 15, 'F');
+doc.text(`Total Receipts: ${totalReceipts}`, 18, 35);
+
+// Box 2: Total Amount
+doc.setFillColor(200, 230, 201); // light green (#C8E6C9)
+doc.setTextColor(27, 94, 32);    // dark green (#1B5E20)
+doc.rect(110, 25, 85, 15, 'F');
+doc.text(`Total Amount: ${totalAmount.toFixed(2)}`, 114, 35);
+
+// Reset text color to black for the table
+doc.setTextColor(0);
 
   const rows = data.map(bill => [
-    `GC-${bill.bill_no}`, bill.name, bill.address, `₹${bill.amount}`, bill.date, bill.time
+    `GC-${bill.bill_no}`, bill.name, bill.address, `${bill.amount}`, bill.date, bill.time
   ]);
 
   doc.autoTable({
-    startY: 30,
+    startY: 45,
     head: [['Bill No', 'Name', 'Address', 'Amount', 'Date', 'Time']],
     body: rows,
-    styles: { fontSize: 10 },
+    styles: { fontSize: 11 },
     headStyles: { fillColor: [255, 112, 67] }
   });
 
