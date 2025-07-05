@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ganesh Chaturthi Collection</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+  <div class="container">
+       
+    <h1>🙏 Ganesh Chaturthi Collection</h1>
+<h2 id="group-heading" style="margin-top: -10px; color: #8d6e63;"></h2>
+
+
+    <!-- Login/Register Section -->
+    <div id="login-section" class="card">
+      <h2>Login / Register</h2>
+      <input type="email" id="email" placeholder="Email" />
+      <input type="password" id="password" placeholder="Password" />
+      <input type="text" id="group-name" placeholder="Ganesh Group Name" />
+      <button onclick="login()">Login</button>
+      <button onclick="register()">Register</button>
+    </div>
+
+    <!-- App Section -->
+    <div id="app-section" class="card" style="display:none">
+      <div class="top-bar">
+        <span id="user-email"></span>
+        <button onclick="logout()" class="small-button">Logout</button>
+      </div>
+
+      <h2>🧾 New Collection Entry</h2>
+      <input type="text" id="donor-name" placeholder="Full Name" />
+      <input type="text" id="donor-address" placeholder="Address" list="address-suggestions" />
+<datalist id="address-suggestions"></datalist>
+
+      <input type="number" id="amount" placeholder="Amount (₹)" />
+      <button onclick="printBill()">🖨️ Print & Save</button>
+
+      <div id="confirmation"></div>
+
+      <!-- 📄 Report Section -->
+      <div class="report-section">
+        <h3>📄 Download Collection Report</h3>
+        <select id="report-range">
+          <option value="today">Today</option>
+          <option value="last2">Last 2 Days</option>
+          <option value="custom">Custom Range</option>
+        </select>
+        <div id="custom-range" style="display:none">
+          <input type="date" id="start-date" />
+          <input type="date" id="end-date" />
+        </div>
+        <button onclick="downloadReport()">⬇️ Download PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
