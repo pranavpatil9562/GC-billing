@@ -24,6 +24,7 @@ window.onload = async () => {
   if (savedLogo) {
     document.getElementById('logo-img').src = savedLogo;
   }
+  addReportControls();
 };
 
 
