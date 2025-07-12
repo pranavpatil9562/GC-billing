@@ -156,6 +156,7 @@ async function printBill() {
     `-------------------------------\n` +
     `May lord Ganesha Bless you` +
     `\n ${groupName} \n` +
+    ` Software by 8088047557`;
     ` Thank you for your support! \n\n\n`;
 
   const encoder = new TextEncoder();
@@ -163,10 +164,11 @@ async function printBill() {
 
   // Helper to send chunks
   async function sendInChunks(characteristic, buffer) {
-    const chunkSize = 512;
+    const chunkSize = 200;
     for (let i = 0; i < buffer.length; i += chunkSize) {
       const chunk = buffer.slice(i, i + chunkSize);
       await characteristic.writeValue(chunk);
+      await new Promise(resolve => setTimeout(resolve, 80));
     }
   }
 
