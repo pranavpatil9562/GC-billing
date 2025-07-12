@@ -8,7 +8,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
-  
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+
 
 </head>
 <body>
@@ -20,14 +21,21 @@
 
 
     <!-- Login/Register Section -->
-    <div id="login-section" class="card">
-      <h2>Login / Register</h2>
-      <input type="email" id="email" placeholder="Email" />
-      <input type="password" id="password" placeholder="Password" />
-      <input type="text" id="group-name" placeholder="Ganesh Group Name, also mention address." />
-      <button onclick="login()">Login</button>
-      <button onclick="register()">Register</button>
-    </div>
+<div id="login-section" class="card">
+  <h2>Login / Register</h2>
+  <input type="email" id="email" placeholder="Email" />
+  <input type="password" id="password" placeholder="Password" />
+  <input type="text" id="group-name" placeholder="Group Name and Address" />
+  <input type="file" id="logo-file" accept="image/*" />
+  <small>Upload logo under 500KB</small>
+  <input type="text" id="upi-id" placeholder="UPI ID for QR (e.g., name@upi)" />
+  <button onclick="login()">Login</button>
+  <button onclick="register()">Register</button>
+</div>
+
+<!-- Keep this outside for logo rendering -->
+<img id="logo-img" style="display:none" crossorigin="anonymous" />
+
 
     <!-- App Section -->
     <div id="app-section" class="card" style="display:none">
@@ -42,6 +50,14 @@
 <datalist id="address-suggestions"></datalist>
 
       <input type="number" id="amount" placeholder="Amount (₹)" />
+      <label class="switch-wrapper">
+       <span>Print UPI QR Code</span>
+       <label class="switch">
+        <input type="checkbox" id="print-qr-checkbox">
+        <span class="slider"></span>
+       </label>
+      </label>
+
       <button onclick="printBill()">🖨️ Print & Save</button>
 
       <div id="confirmation"></div>

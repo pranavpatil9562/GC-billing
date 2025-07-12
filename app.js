@@ -20,7 +20,10 @@ window.onload = async () => {
     await tryReconnectPrinter();
   }
   updateAddressSuggestions();
-
+  const savedLogo = localStorage.getItem('user_logo_base64');
+  if (savedLogo) {
+    document.getElementById('logo-img').src = savedLogo;
+  }
 };
 
 
@@ -28,17 +31,48 @@ async function login() {
   const email = document.getElementById('email').value;
   const password = document.getElementById('password').value;
   const group = document.getElementById('group-name').value || 'GANESH GROUP';
-  localStorage.setItem('ganesh_group', group); // Save to localStorage
-  groupName = group;
+  const logoFile = document.getElementById('logo-file').files[0];
+  const upiId = document.getElementById('upi-id').value;
 
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) return alert('Login failed: ' + error.message);
-  currentUser = data.user;
-  document.getElementById('login-section').style.display = 'none';
-  document.getElementById('app-section').style.display = 'block';
-  document.getElementById('user-email').innerText = `Welcome, ${currentUser.email}`;
-  await tryReconnectPrinter();
+  if (!logoFile || logoFile.size > 500 * 1024) {
+    return alert("Please upload a logo under 500KB.");
+  }
+
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const img = new Image();
+    img.src = reader.result;
+    img.onload = async () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const maxWidth = 384;
+      const scale = maxWidth / img.width;
+      canvas.width = maxWidth;
+      canvas.height = img.height * scale;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      const resizedBase64 = canvas.toDataURL("image/png");
+
+      localStorage.setItem('user_logo_base64', resizedBase64);
+      localStorage.setItem('ganesh_group', group);
+      localStorage.setItem('user_upi_id', upiId);
+
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return alert("Login failed: " + error.message);
+
+      currentUser = data.user;
+
+      document.getElementById('logo-img').src = resizedBase64;
+      document.getElementById('group-heading').innerText = group;
+      document.getElementById('login-section').style.display = 'none';
+      document.getElementById('app-section').style.display = 'block';
+      document.getElementById('user-email').innerText = `Welcome, ${currentUser.email}`;
+      await tryReconnectPrinter();
+    };
+  };
+  reader.readAsDataURL(logoFile);
 }
+
 
 async function register() {
   const email = document.getElementById('email').value;
@@ -56,66 +90,14 @@ async function logout() {
   localStorage.removeItem('printerId');
   location.reload();
 }
-// async function printBill() {
-//   const name = document.getElementById('donor-name').value;
-//   const address = document.getElementById('donor-address').value;
-//   const amount = parseFloat(document.getElementById('amount').value);
-//   if (!name || !address || !amount) return alert('Fill in all fields');
 
-//   const billNo = await getNextBillNo();
-//   const date = new Date();
-//   const groupName = localStorage.getItem('ganesh_group') || 'GANESH GROUP';
-
-//   const bill = {
-//     user_id: currentUser.id,
-//     name,
-//     address,
-//     amount,
-//     date: date.toLocaleDateString(),
-//     time: date.toLocaleTimeString(),
-//     bill_no: billNo,
-//     group_name: groupName
-//   };
-
-//   const { error } = await supabase.from('collection_bills').insert([bill]);
-//   if (error) return alert('Error saving to database: ' + error.message);
-
-// //   localStorage.setItem('ganesh_bill_no', ++billNo);
-
-//   // Save recent addresses
-//   let recentAddresses = JSON.parse(localStorage.getItem('ganesh_addresses') || '[]');
-//   if (!recentAddresses.includes(address)) {
-//     recentAddresses.unshift(address);
-//     if (recentAddresses.length > 10) recentAddresses.pop();
-//     localStorage.setItem('ganesh_addresses', JSON.stringify(recentAddresses));
-//   }
-//   updateAddressSuggestions();
-
-//   const confirmation = `
-// ---------------------------
-// ${groupName}
-// ---------------------------
-// Name: ${name}
-// Address: ${address}
-// Amount: ${amount}
-// Bill No: GC-${bill.bill_no}
-// Date: ${bill.date} ${bill.time}
-// ---------------------------
-// Thank you for your support!
-// ---------------------------`;
-
-//   printRaw(confirmation);
-//   document.getElementById('confirmation').innerText = `✅ Bill Saved & Sent to Printer: GC-${bill.bill_no}`;
-//   document.getElementById('donor-name').value = '';
-//   document.getElementById('donor-address').value = '';
-//   document.getElementById('amount').value = '';
-// }
 async function printBill() {
   const name = document.getElementById('donor-name').value;
   const address = document.getElementById('donor-address').value;
   const amount = parseFloat(document.getElementById('amount').value);
   if (!name || !address || !amount) return alert('Fill in all fields');
 
+  const shouldPrintQr = document.getElementById('print-qr-checkbox').checked;
   const billNo = await getNextBillNo();
   const date = new Date();
   const groupName = localStorage.getItem('ganesh_group') || 'GANESH GROUP';
@@ -155,9 +137,9 @@ async function printBill() {
     `Time: ${bill.time}\n` +
     `-------------------------------\n` +
     `May lord Ganesha Bless you` +
-    `\n ${groupName} \n` +
-    ` Software by 8088047557`;
-    ` Thank you for your support! \n\n\n`;
+    `\n${groupName} \n` +
+    `Thank you for your support!\n`+
+    `Software by 8088047557 \n\n\n`;
 
   const encoder = new TextEncoder();
   const data = encoder.encode(confirmation);
@@ -173,28 +155,32 @@ async function printBill() {
   }
 
   // Print logic
-  if (printerDevice && printerCharacteristic) {
-    await printLogoToPrinter(); // 🖼️ Logo first
-    await sendInChunks(printerCharacteristic, data); // 🧾 Text
-  } else {
-    try {
-      const device = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
-      });
-      printerDevice = device;
-      localStorage.setItem('printerId', device.id);
-      const server = await device.gatt.connect();
-      const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
-      printerCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
-
-      await printLogoToPrinter();
-      await sendInChunks(printerCharacteristic, data);
-    } catch (err) {
-      console.error('Printing failed:', err);
-      alert('Failed to connect to printer.');
-    }
+  if (!printerDevice || !printerCharacteristic) {
+  try {
+    const device = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+    });
+    printerDevice = device;
+    localStorage.setItem('printerId', device.id);
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+    printerCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+  } catch (err) {
+    console.error('Printing failed:', err);
+    alert('Failed to connect to printer.');
+    return;
   }
+}
+
+// ✅ Always print logo, text, and QR regardless of connection state
+await printLogoToPrinter();
+await sendInChunks(printerCharacteristic, data);
+if (shouldPrintQr) {
+  await printQrCodeToPrinter(name, amount);
+}
+
+
 
   // Reset UI
   document.getElementById('confirmation').innerText = `✅ Bill Saved & Sent to Printer: GC-${bill.bill_no}`;
@@ -250,14 +236,6 @@ async function printLogoToPrinter() {
     await printerCharacteristic.writeValue(chunk);
   }
 }
-
-
-
-
-
-
-
-
 async function tryReconnectPrinter() {
   const rememberedDeviceId = localStorage.getItem('printerId');
   if (!rememberedDeviceId || !navigator.bluetooth) return;
@@ -430,4 +408,47 @@ async function getNextBillNo() {
   }
 
   return data.length ? data[0].bill_no + 1 : 1;
+}
+async function printQrCodeToPrinter(name, amount) {
+  const upi = localStorage.getItem('user_upi_id');
+  if (!upi || !printerCharacteristic) return;
+
+  const upiUrl = `upi://pay?pa=${upi}&pn=${encodeURIComponent(name)}&am=${amount}&cu=INR`;
+  const qrCanvas = document.createElement('canvas');
+  await QRCode.toCanvas(qrCanvas, upiUrl, { width: 200 });
+
+  const ctx = qrCanvas.getContext('2d');
+  const imageData = ctx.getImageData(0, 0, qrCanvas.width, qrCanvas.height);
+  const width = qrCanvas.width;
+  const height = qrCanvas.height;
+  const bytesPerRow = Math.ceil(width / 8);
+  const raster = new Uint8Array(bytesPerRow * height);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const brightness = (imageData.data[i] + imageData.data[i + 1] + imageData.data[i + 2]) / 3;
+      if (brightness < 128) {
+        raster[y * bytesPerRow + (x >> 3)] |= (0x80 >> (x & 7));
+      }
+    }
+  }
+
+  const header = new Uint8Array([
+    0x1D, 0x76, 0x30, 0x00,
+    bytesPerRow & 0xFF, (bytesPerRow >> 8) & 0xFF,
+    height & 0xFF, (height >> 8) & 0xFF
+  ]);
+
+  const full = new Uint8Array(header.length + raster.length);
+  full.set(header);
+  full.set(raster, header.length);
+
+  for (let i = 0; i < full.length; i += 512) {
+    const chunk = full.slice(i, i + 512);
+    await printerCharacteristic.writeValue(chunk);
+  }
+  const encoder = new TextEncoder();
+  const trailingSpace = encoder.encode('\n\n\n');
+  await printerCharacteristic.writeValue(trailingSpace);
 }
